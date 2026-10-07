@@ -1,0 +1,55 @@
+# Copy to ./shorts.toml (picked up automatically) or pass with --config.
+# Precedence: defaults < ./shorts.toml < --config file < CLI flags.
+
+language = "en"            # whisper language code, or "auto"
+host = "Ana Silva"
+guest = "Rui Costa"
+host_side = "auto"         # auto (ask Claude from the contact sheet, else left) | left | right
+clips = 8
+out = "~/Shorts"
+
+# Proper nouns and terms that must be spelled right in captions (also fed to Whisper's initial prompt).
+terms = ["Mindera", "Minders", "Mindera Yellow Box", "Jira", "MAUI", "Kotlin Multiplatform", "React Native", "phygital"]
+
+# Whole-word caption fixes, multi-word allowed. Claude adds the ones it spots while picking clips.
+[corrections]
+"my nearer" = "Mindera"
+
+# Picking
+# claude_model = "opus"
+min_clip_s = 20
+ideal_max_s = 60
+max_clip_s = 90
+
+# Transcription
+whisper_model = "medium"   # int8 on CPU, about half real-time on Apple silicon
+whisper_compute = "int8"
+
+# Reframing
+split_screen = true        # stacked 1080×960 panels on rapid back-and-forth
+rapid_turn_s = 2.5
+min_segment_s = 0.6
+
+# Encoding
+crf = 19
+max_fps = 30
+jobs = 0                   # 0 = cores / 6
+
+[brand]
+name = "Mindera"
+# font = "./fonts/PPNeueMachina-PlainUltrabold.otf"   # default: ./fonts/PPNeueMachina-*.otf, else Montserrat ExtraBold
+text_color = "#FFFFFF"
+highlight_color = "#FFC700"
+outline_color = "#0A0A0B"
+outline_px = 6
+shadow_px = 3
+font_size = 80
+max_text_width = 780
+caption_y = 0.64
+safe_top = 250
+safe_bottom = 400
+safe_right = 150
+words_per_line = 3
+max_lines = 2
+pause_break = 0.6
+hashtags = ["#Mindera"]
