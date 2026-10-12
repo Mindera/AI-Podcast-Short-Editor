@@ -77,6 +77,7 @@ class Config(BaseModel):
     max_fps: int = 30
     jobs: int = 0  # 0 = cores // 6
     stall_s: int = 300  # kill ffmpeg if it makes no progress for this long
+    drive_cookies: str | None = None  # browser to borrow Google cookies from for private Drive files, e.g. "chrome"
 
     brand: Brand = Field(default_factory=Brand)
 

@@ -18,6 +18,7 @@ shorts from a podcast with this repo.
    | "save to …" | `--out …` |
    | "don't ask me, just render" | `--yes` |
    | "use Opus to pick" | `--model opus` |
+   | "use my Google login" (private Drive file) | `--drive-cookies chrome` |
 
 2. **Check the environment:** `./shorts doctor`. Needs `ffmpeg`/`ffprobe`, `uv`, and the `claude` CLI (logged in).
    Never install system packages or use `sudo`; everything Python lives in the project's `uv` venv (Python 3.12).
@@ -33,6 +34,10 @@ shorts from a podcast with this repo.
    ```bash
    ./shorts render "<episode-dir>"
    ```
+   If a Drive file isn't public, the run stops with "isn't publicly shared". **Ask the user** whether you may use
+   their browser's Google login for that file. Only after they say yes, re-run with `--drive-cookies chrome` (or
+   the browser they name). Never change the file's sharing settings.
+
    A healthy long run always has either an `ffmpeg` child process or new files appearing under `_work/`. If neither
    for several minutes, it's hung. ffmpeg calls have a built-in stall watchdog.
 

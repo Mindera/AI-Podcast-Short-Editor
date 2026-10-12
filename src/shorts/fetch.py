@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
 from .cache import atomic_write_json
 from .episode import Episode, drive_id
 from .util import log, warn
+
+# gdown's messages when the file isn't shared publicly (or the quota/permission check fails)
+_DRIVE_DENIED = ("Cannot retrieve the public link", "Failed to retrieve file url", "Access denied", "permission")
 
 
 def _watch(cmd: list[str], dest: Path, log_path: Path, stall_s: int) -> None:
@@ -40,8 +44,7 @@ def fetch(ep: Episode) -> Path:
         if dest.exists() and done.exists():
             return dest
         log(f"downloading Drive file {did} (original upload) → {dest}")
-        url = f"https://drive.google.com/uc?id={did}"
-        _watch(["uvx", "gdown", "--continue", url, "-O", str(dest)], dest, ep.work / "logs" / "fetch.log", ep.cfg.stall_s)
+        _fetch_drive(did, dest, ep)
     elif ep.source.startswith(("http://", "https://")):
         if dest.exists() and done.exists():
             return dest
@@ -56,3 +59,27 @@ def fetch(ep: Episode) -> Path:
         raise RuntimeError(f"download produced no file at {dest}")
     atomic_write_json(done, {"source": ep.source, "size": dest.stat().st_size})
     return dest
+
+
+def _fetch_drive(did: str, dest: Path, ep: Episode) -> None:
+    url = f"https://drive.google.com/uc?id={did}"
+    cmd = ["uvx", "gdown>=6.4", "--continue", url, "-O", str(dest)]
+    log_path = ep.work / "logs" / "fetch.log"
+    browser = ep.cfg.drive_cookies
+    if not browser:
+        try:
+            _watch(cmd + ["--no-cookies"], dest, log_path, ep.cfg.stall_s)
+        except RuntimeError as e:
+            if any(m.lower() in str(e).lower() for m in _DRIVE_DENIED):
+                raise SystemExit(
+                    f"Drive file {did} isn't publicly shared. To download it as your signed-in Google account, "
+                    "re-run with --drive-cookies chrome (or brave/firefox/edge/safari…). Your Google cookies are "
+                    "copied to a temp file for the download only and deleted right after."
+                ) from e
+            raise
+        return
+    # cookies live in a private temp dir for this download only, never in ~/.cache/gdown
+    log(f"using your {browser} Google session for the Drive download (macOS may ask for Keychain access)")
+    with tempfile.TemporaryDirectory(prefix="shorts-gdown-") as tmp:
+        jar = Path(tmp) / "cookies.txt"
+        _watch(cmd + ["--cookies", str(jar), "--cookies-from-browser", browser], dest, log_path, ep.cfg.stall_s)
