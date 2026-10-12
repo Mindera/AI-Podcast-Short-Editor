@@ -147,7 +147,7 @@ probe ──► transcribe ──► pick ──► snap ──► clips.json �
 
 | Source | Example | How it's fetched |
 |---|---|---|
-| Google Drive link | `https://drive.google.com/file/d/1AbC…/view` | `uvx gdown --continue` in the background (resumable), progress polled |
+| Google Drive link | `https://drive.google.com/file/d/1AbC…/view` | `uvx gdown --continue` in the background (resumable), progress polled. Private file: add `--drive-cookies chrome` to download as your signed-in account (cookies go to a temp file that's deleted afterwards) |
 | Local file | `~/Downloads/ep12.mp4` | Used in place, read-only |
 | Any other URL | `https://…` | `uvx yt-dlp` (with a warning about re-encodes) |
 
@@ -162,6 +162,7 @@ probe ──► transcribe ──► pick ──► snap ──► clips.json �
 | `--host-side` | `auto` | `left` / `right`. With `auto`, Claude judges it from the layout contact sheet; if it can't tell, `left`. |
 | `--out`, `-o` | `~/Shorts` | Output root. Each episode gets its own folder. |
 | `--name`, `-n` | from the filename / Drive id | Episode folder name. |
+| `--drive-cookies` | off | Browser (`chrome`, `brave`, `firefox`, `safari`…) whose Google login downloads a private Drive file. |
 | `--model` | Claude Code default | Claude model for picking, e.g. `opus`. |
 | `--whisper-model` | `medium` | faster-whisper model (int8, CPU). |
 | `--jobs` | cores / 6 | Parallel renders. |

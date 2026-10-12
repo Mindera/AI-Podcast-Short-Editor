@@ -56,6 +56,8 @@ def run(
     model: Annotated[Optional[str], typer.Option("--model", help="Claude model for picking (e.g. opus).")] = None,
     whisper_model: Annotated[Optional[str], typer.Option(help="faster-whisper model (default medium).")] = None,
     jobs: Annotated[Optional[int], typer.Option(help="Parallel renders (default cores/6).")] = None,
+    drive_cookies: Annotated[Optional[str], typer.Option(
+        "--drive-cookies", help="Browser whose Google login to use for a private Drive file (e.g. chrome).")] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the approval pause and render straight away.")] = False,
     ai_qa: Annotated[bool, typer.Option("--ai-qa", help="Ask Claude to review the QA contact sheet.")] = False,
 ) -> None:
@@ -63,7 +65,7 @@ def run(
     _env_checks()
     cfg = load_config(config, _overrides(out=out, host=host, guest=guest, clips=clips, language=language, terms=terms,
                                          host_side=host_side, claude_model=model, whisper_model=whisper_model,
-                                         jobs=jobs))
+                                         jobs=jobs, drive_cookies=drive_cookies))
     ep = Episode.create(source, cfg, name)
     log(f"episode folder: {ep.dir}")
 
