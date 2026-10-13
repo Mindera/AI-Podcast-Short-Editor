@@ -12,7 +12,7 @@ from typing import Annotated, Optional
 
 import typer
 
-from . import fetch, pick, probe, qa, render, snap, transcribe
+from . import costs, fetch, pick, probe, qa, render, snap, transcribe
 from .assets import ensure_assets
 from .config import load_config
 from .episode import Episode
@@ -68,18 +68,31 @@ def run(
                                          jobs=jobs, drive_cookies=drive_cookies))
     ep = Episode.create(source, cfg, name)
     log(f"episode folder: {ep.dir}")
+    costs.start(ep, "run")
+    try:
+        _run_steps(ep, yes, ai_qa)
+    finally:
+        costs.finish()
+        log(f"costs → {ep.dir / 'run.md'}")
 
+
+def _run_steps(ep: Episode, yes: bool, ai_qa: bool) -> None:
     # fonts + face model download while the source downloads / transcribes
-    assets = threading.Thread(target=ensure_assets, args=(cfg.brand.font,), daemon=True)
+    assets = threading.Thread(target=ensure_assets, args=(ep.cfg.brand.font,), daemon=True)
     assets.start()
-    fetch.fetch(ep)
-    assets.join()
-    probe.run(ep)
+    with costs.step("fetch"):
+        fetch.fetch(ep)
+        assets.join()
+    with costs.step("probe"):
+        probe.run(ep)
     # separate process: OpenCV and PyAV (faster-whisper) bundle clashing libavdevice copies on macOS
-    if subprocess.run([sys.executable, "-m", "shorts", "transcribe", str(ep.dir)]).returncode != 0:
-        raise typer.Exit(1)
-    pick.run(ep)
-    data = snap.run(ep)
+    with costs.step("transcribe"):
+        if subprocess.run([sys.executable, "-m", "shorts", "transcribe", str(ep.dir)]).returncode != 0:
+            raise typer.Exit(1)
+    with costs.step("pick"):
+        pick.run(ep)
+    with costs.step("snap"):
+        data = snap.run(ep)
     snap.print_summary(ep, data)
 
     if not yes:
@@ -94,8 +107,10 @@ def run(
 
 
 def _render_and_qa(ep: Episode, only: list[int] | None, ai_qa: bool) -> None:
-    results = render.run(ep, only)
-    ok = qa.run(ep, ai=ai_qa)
+    with costs.step("render"):
+        results = render.run(ep, only)
+    with costs.step("qa"):
+        ok = qa.run(ep, ai=ai_qa)
     failed = [r for r in results if r["status"] == "failed"]
     console.print(f"\n[bold]Done.[/bold] {len(results) - len(failed)}/{len(results)} clips in {ep.dir}")
     if failed or not ok:
@@ -124,7 +139,12 @@ def pick_cmd(episode: EpisodeDir, config: ConfigOpt = None, force: ForceOpt = Fa
              model: Annotated[Optional[str], typer.Option("--model")] = None) -> None:
     """Step 3: Claude reads the whole transcript and picks clips → clips_raw.json."""
     ep = Episode.load(episode, config, _overrides(clips=clips, claude_model=model) or None)
-    pick.run(ep, force)
+    costs.start(ep, "pick")
+    try:
+        with costs.step("pick"):
+            pick.run(ep, force)
+    finally:
+        costs.finish()
 
 
 @app.command("snap")
@@ -141,14 +161,27 @@ def render_cmd(episode: EpisodeDir, config: ConfigOpt = None,
     """Steps 4–7: reframe, captions, encode and QA every clip in clips.json."""
     _env_checks()
     ep = Episode.load(episode, config)
-    _render_and_qa(ep, [int(x) for x in only.split(",")] if only else None, ai_qa)
+    costs.start(ep, "render" + (f" --only {only}" if only else ""))
+    try:
+        _render_and_qa(ep, [int(x) for x in only.split(",")] if only else None, ai_qa)
+    finally:
+        costs.finish()
+        log(f"costs → {ep.dir / 'run.md'}")
 
 
 @app.command("qa")
 def qa_cmd(episode: EpisodeDir, config: ConfigOpt = None,
            ai_qa: Annotated[bool, typer.Option("--ai-qa")] = False) -> None:
     """Step 7: re-run QA checks and rewrite README.md."""
-    if not qa.run(Episode.load(episode, config), ai=ai_qa):
+    ep = Episode.load(episode, config)
+    if ai_qa:
+        costs.start(ep, "qa --ai-qa")
+    try:
+        with costs.step("qa"):
+            ok = qa.run(ep, ai=ai_qa)
+    finally:
+        costs.finish()
+    if not ok:
         raise typer.Exit(1)
 
 

@@ -45,7 +45,8 @@ shorts from a podcast with this repo.
    speaking, are captions inside the safe zones and off faces, no flicker? Read `_qa/qa.json`. Fix (edit
    `_work/clips.json`, e.g. speaker turns or times) and `./shorts render <dir> --only N` before reporting.
 
-5. **Report** the output folder, the `README.md` table, any QA warnings, and what you assumed.
+5. **Report** the output folder, the `README.md` table, any QA warnings, the Claude cost from `run.md`, and what you
+   assumed.
 
 ## Rules
 
