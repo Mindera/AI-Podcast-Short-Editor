@@ -102,9 +102,11 @@ def place_pages(pages: list[Page], font: ImageFont.FreeTypeFont, brand: Brand, s
         faces = [f for s in segs for f in s.get("faces", [])]
         default = OUT_H / 2 if split else brand.caption_y * OUT_H
         lo, hi = top_limit + block_h / 2 + pad, bottom_limit - block_h / 2 - pad
-        candidates = [default] + [default + d for k in range(1, 12) for d in (k * 40, -k * 40)]
+        # Nearest-first over the whole safe band, so a caption can go above a head when nothing below is clear.
+        steps = int((hi - lo) // 40) + 1
+        candidates = [default] + [default + d for k in range(1, steps + 1) for d in (k * 40, -k * 40)]
         x1, x2 = OUT_W / 2 - widest / 2 - pad, OUT_W / 2 + widest / 2 + pad
-        chosen = None
+        chosen, best = None, None
         for y in candidates:
             if not lo <= y <= hi:
                 continue
@@ -112,7 +114,14 @@ def place_pages(pages: list[Page], font: ImageFont.FreeTypeFont, brand: Brand, s
             if not any(_overlaps(box, f) for f in faces):
                 chosen = y
                 break
-        p.y = chosen if chosen is not None else _clamp(default, lo, hi)
+            # No clear slot (page spans a cut between differently framed shots): least time spent over a face.
+            cost = sum(min(p.end, s["end"]) - max(p.start, s["start"])
+                       for s in segs if any(_overlaps(box, f) for f in s.get("faces", [])))
+            if best is None or cost < best[0] - 1e-6:
+                best = (cost, y)
+        if chosen is None:
+            chosen = best[1] if best else _clamp(default, lo, hi)
+        p.y = chosen
         p.bbox = [round(x1, 1), round(p.y - block_h / 2 - pad, 1), round(x2, 1), round(p.y + block_h / 2 + pad, 1)]
 
 
