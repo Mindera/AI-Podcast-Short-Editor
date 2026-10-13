@@ -49,7 +49,7 @@ and typing captions. This tool does all of that from one command and stops once,
 | ✍️ **Names spelled right** | Your terms go into Whisper's prompt. Claude also collects misheard names while it reads, and corrections are applied to whole words, including multi-word ones ("my nearer" → "Mindera"). Filler words are dropped from the captions only; the audio is never touched. |
 | 🔊 **Broadcast-ready** | One ffmpeg encode per clip: libx264 High, CRF 19, yuv420p, up to 30 fps, `+faststart`. Audio gets two-pass `loudnorm` to −14 LUFS (TP −1.5) and AAC 192k at 48 kHz. |
 | 🖼️ **Covers and copy** | Each clip gets a cover: a frame darkened toward `#0A0A0B` with the title in the lower third and one key word in yellow. A `README.md` holds the title, a 2–3 line description and hashtags for each clip, always including `#Mindera`. |
-| ♻️ **Cached and safe** | Every step caches on its inputs and writes atomically, so a re-run only redoes what changed. The source file is never modified. Outputs it replaces are moved to `_work/_superseded/`, never deleted. Nothing is uploaded. |
+| ♻️ **Cached and safe** | Every step caches on its inputs and writes atomically, so a re-run only redoes what changed. The source file is never modified. Outputs it replaces are moved to `_work/_superseded/`, never deleted. Nothing is uploaded. `run.md` records what each run cost: Claude dollars and tokens per call, and wall/CPU time per step. |
 | ✅ **Checks its own work** | ffprobe checks every output, and frames at 15/50/85 % go into a contact sheet. Captions are checked against the safe zones and face boxes. `--ai-qa` has Claude look at the contact sheet too. |
 
 ---
@@ -279,12 +279,14 @@ flowchart LR
 ├── 01_why-we-trust-people-first.ass     # captions as subtitles (deliverable)
 ├── …
 ├── README.md                            # table + copy-paste title / description / hashtags per clip
+├── run.md                               # cost: Claude $ and tokens per call and model, time per step, per run
 ├── _qa/                                 # frames at 15/50/85 %, contact_sheet.jpg, qa.json, ai_review.md
 └── _work/                               # everything intermediate, cached
     ├── probe.json  audio16k.wav  layout_sheet.jpg  stereo.json
     ├── transcript.json  transcript.srt  transcript.txt
     ├── clips_raw.json  clips.json         # ← edit clips.json, then `shorts render`
     ├── clips/NN/reframe.json  captions/  encode.log
+    ├── costs.json                         # the ledger run.md is built from
     └── _superseded/<timestamp>/           # replaced outputs, never deleted
 ```
 

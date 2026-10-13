@@ -10,6 +10,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from . import costs
 from .cache import atomic_write_text, read_json
 from .episode import Episode
 from .reframe import OUT_H, OUT_W
@@ -112,11 +113,16 @@ def ai_review(ep: Episode, sheet: Path) -> str:
               f"titled with the clip number. Check for each clip: is a person well framed (not cut off, not an empty "
               f"crop)? Are captions readable, inside the frame, and not covering faces? Anything visually broken? "
               f"Answer with a short markdown list per clip: OK or the problem.")
-    cmd = [cfg.claude_bin, "-p", "--allowedTools", "Read", "--add-dir", str(sheet.parent)]
+    cmd = [cfg.claude_bin, "-p", "--output-format", "json", "--allowedTools", "Read", "--add-dir", str(sheet.parent)]
     if cfg.claude_model:
         cmd += ["--model", cfg.claude_model]
     proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=sheet.parent, timeout=600)
-    return proc.stdout.strip() or proc.stderr.strip()
+    try:
+        envelope = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return proc.stdout.strip() or proc.stderr.strip()
+    costs.record_claude("AI QA", envelope)
+    return str(envelope.get("result", "")).strip()
 
 
 def write_readme(ep: Episode, data: dict, results: dict[int, dict]) -> None:

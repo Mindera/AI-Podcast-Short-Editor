@@ -14,6 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
+from . import costs
 from .cache import atomic_write_json, file_sig, is_fresh, make_key, mark_done, read_json
 from .episode import Episode
 from .util import log, warn
@@ -135,7 +136,7 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[a:b + 1])
 
 
-def call_claude(ep: Episode, prompt: str) -> str:
+def call_claude(ep: Episode, prompt: str, purpose: str = "pick") -> str:
     cfg = ep.cfg
     if not shutil.which(cfg.claude_bin):
         raise SystemExit(f"`{cfg.claude_bin}` not found. Install Claude Code, or set SHORTS_PICKER=stub.")
@@ -146,6 +147,7 @@ def call_claude(ep: Episode, prompt: str) -> str:
     if proc.returncode != 0:
         raise RuntimeError(f"claude -p failed ({proc.returncode}): {proc.stderr.strip()[-800:]}")
     envelope = json.loads(proc.stdout)
+    costs.record_claude(purpose, envelope)
     if envelope.get("is_error"):
         raise RuntimeError(f"claude -p returned an error: {envelope.get('result')}")
     return envelope.get("result", "")
@@ -198,7 +200,8 @@ def run(ep: Episode, force: bool = False) -> PickResult:
             result = PickResult.model_validate(_extract_json(reply))
         except (ValueError, ValidationError) as e:
             warn(f"pick: reply didn't validate ({str(e)[:200]}); retrying once")
-            reply = call_claude(ep, prompt + f"\n\nYour previous reply was invalid: {e}\nReturn ONLY the JSON object.")
+            reply = call_claude(ep, prompt + f"\n\nYour previous reply was invalid: {e}\nReturn ONLY the JSON object.",
+                                "pick (retry)")
             result = PickResult.model_validate(_extract_json(reply))
         (work / "pick_reply.txt").write_text(reply)
     if len(result.clips) < cfg.clips:
