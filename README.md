@@ -14,7 +14,7 @@ ready-to-post `.mp4`s, covers and copy.
 
 ```bash
 ./shorts "https://drive.google.com/file/d/<FILE_ID>/view" --host "Ana Silva" --guest "Rui Costa" --clips 8
-# → ~/Shorts/drive-<id>/01_<slug>.mp4  01_<slug>.jpg  01_<slug>.ass  …  README.md  _qa/contact_sheet.jpg
+# → ~/Shorts/<short-filename>/01_<slug>.mp4  01_<slug>.jpg  01_<slug>.ass  …  README.md  _qa/contact_sheet.jpg
 ```
 
 ---
@@ -161,7 +161,7 @@ probe ──► transcribe ──► pick ──► snap ──► clips.json �
 | `--terms` | Mindera terms | Comma-separated proper nouns and terms that must be spelled right. |
 | `--host-side` | `auto` | `left` / `right`. With `auto`, Claude judges it from the layout contact sheet; if it can't tell, `left`. |
 | `--out`, `-o` | `~/Shorts` | Output root. Each episode gets its own folder. |
-| `--name`, `-n` | from the filename / Drive id | Episode folder name. |
+| `--name`, `-n` | short form of the filename | Episode folder name. Default: the video's filename (Drive file name for public Drive links) trimmed to its distinctive words, ≤40 chars, e.g. `Podcast EP12 - Jane Doe (FINAL v3).mp4` → `podcast-ep12-jane-doe`. Private Drive files fall back to `drive-<id>`. Re-running the same source reuses its folder; a different source with the same name gets `-2`. |
 | `--drive-cookies` | off | Browser (`chrome`, `brave`, `firefox`, `safari`…) whose Google login downloads a private Drive file. |
 | `--model` | Claude Code default | Claude model for picking, e.g. `opus`. |
 | `--whisper-model` | `medium` | faster-whisper model (int8, CPU). |
