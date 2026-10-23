@@ -38,6 +38,7 @@ ready-to-post `.mp4`s, covers and copy.
 - [Install and dependencies](#-install-and-dependencies)
 - [Development](#-development)
 - [Known limits and assumptions](#-known-limits-and-assumptions)
+- [Licence](#-licence)
 
 ---
 
@@ -338,3 +339,16 @@ safe-zone avoidance, and the cache.
 - Several lines of the original spec were cut off. The gaps were filled as follows: `transcript.txt` has one line
   per segment; padding is capped at the midpoint of the gap to the neighbouring word; superseded files are moved, not
   deleted; the cover's highlighted word is the `key_word` field.
+
+---
+
+## 📄 Licence
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md). Copyright © 2026 Mindera.
+
+You may use, change and share this tool for any **noncommercial** purpose: personal projects, research, education,
+and charities, public bodies and other non-profits. **Commercial use is not allowed**, and that includes building
+paid software or services on top of it. For a commercial licence, contact [Mindera](https://mindera.com).
+
+This is a source-available licence, not an OSI-approved open-source one, because open-source licences can't forbid
+commercial use. Montserrat, which is downloaded on first use rather than bundled, is under the SIL Open Font License.
