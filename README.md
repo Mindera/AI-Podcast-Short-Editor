@@ -13,9 +13,9 @@ ready-to-post `.mp4`s, covers and copy.
 </div>
 
 <p align="center">
-  <a href="docs/media/demo.mp4"><img src="docs/media/demo.jpg" alt="22-second demo: one command turns a 1-hour episode into ranked vertical shorts with word-by-word captions" width="100%"></a>
+  <a href="docs/media/demo.mp4"><img src="docs/media/demo.webp" alt="22-second demo: one command turns a 1-hour episode into ranked vertical shorts with word-by-word captions" width="100%"></a>
   <br>
-  <sub>▶ <a href="docs/media/demo.mp4">Watch the 22-second demo</a> (made with <a href="https://github.com/latent-spaces/brag">/brag</a>)</sub>
+  <sub>🔊 <a href="docs/media/demo.mp4">Watch with sound</a> · made with <a href="https://github.com/latent-spaces/brag">/brag</a></sub>
 </p>
 
 ```bash
