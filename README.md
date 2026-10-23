@@ -12,6 +12,12 @@ ready-to-post `.mp4`s, covers and copy.
 
 </div>
 
+<p align="center">
+  <a href="docs/media/demo.mp4"><img src="docs/media/demo.jpg" alt="22-second demo: one command turns a 1-hour episode into ranked vertical shorts with word-by-word captions" width="100%"></a>
+  <br>
+  <sub>▶ <a href="docs/media/demo.mp4">Watch the 22-second demo</a> (made with <a href="https://github.com/latent-spaces/brag">/brag</a>)</sub>
+</p>
+
 ```bash
 ./shorts "https://drive.google.com/file/d/<FILE_ID>/view" --host "Ana Silva" --guest "Rui Costa" --clips 8
 # → ~/Shorts/<short-filename>/01_<slug>.mp4  01_<slug>.jpg  01_<slug>.ass  …  README.md  _qa/contact_sheet.jpg
