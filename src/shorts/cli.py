@@ -41,6 +41,20 @@ def _env_checks() -> None:
         log("HF_TOKEN is set, but diarization isn't implemented; using transcript turns + stereo mic check")
 
 
+def _require_picker(cfg) -> None:
+    """The pick step runs `claude -p` long after the slow steps; fail now if it's missing."""
+    if os.environ.get("SHORTS_PICKER", "claude") != "stub":
+        require_tools(cfg.claude_bin)
+
+
+def _require_fetcher(source: str) -> None:
+    """URL and Drive sources are downloaded with `uvx gdown` / `uvx yt-dlp`."""
+    from .episode import drive_id
+
+    if drive_id(source) or source.startswith(("http://", "https://")):
+        require_tools("uv", "uvx")
+
+
 @app.command()
 def run(
     source: Annotated[str, typer.Argument(help="Google Drive link, other video URL, or local path.")],
@@ -66,6 +80,8 @@ def run(
     cfg = load_config(config, _overrides(out=out, host=host, guest=guest, clips=clips, language=language, terms=terms,
                                          host_side=host_side, claude_model=model, whisper_model=whisper_model,
                                          jobs=jobs, drive_cookies=drive_cookies))
+    _require_fetcher(source)
+    _require_picker(cfg)  # pick runs ~30 min in on a long episode; fail now, not then
     ep = Episode.create(source, cfg, name)
     log(f"episode folder: {ep.dir}")
     costs.start(ep, "run")
@@ -123,6 +139,7 @@ def probe_cmd(episode: EpisodeDir, config: ConfigOpt = None, force: ForceOpt = F
     """Step 1: ffprobe, 16 kHz WAV, chunk plan, stereo check, layout contact sheet."""
     _env_checks()
     ep = Episode.load(episode, config)
+    _require_fetcher(ep.source)
     fetch.fetch(ep)
     probe.run(ep, force)
 
@@ -139,6 +156,7 @@ def pick_cmd(episode: EpisodeDir, config: ConfigOpt = None, force: ForceOpt = Fa
              model: Annotated[Optional[str], typer.Option("--model")] = None) -> None:
     """Step 3: Claude reads the whole transcript and picks clips → clips_raw.json."""
     ep = Episode.load(episode, config, _overrides(clips=clips, claude_model=model) or None)
+    _require_picker(ep.cfg)
     costs.start(ep, "pick")
     try:
         with costs.step("pick"):
@@ -161,9 +179,13 @@ def render_cmd(episode: EpisodeDir, config: ConfigOpt = None,
     """Steps 4–7: reframe, captions, encode and QA every clip in clips.json."""
     _env_checks()
     ep = Episode.load(episode, config)
+    try:
+        ranks = [int(x) for x in only.split(",")] if only else None
+    except ValueError:
+        raise SystemExit(f"--only expects comma-separated clip numbers, e.g. 1,3 (got: {only})") from None
     costs.start(ep, "render" + (f" --only {only}" if only else ""))
     try:
-        _render_and_qa(ep, [int(x) for x in only.split(",")] if only else None, ai_qa)
+        _render_and_qa(ep, ranks, ai_qa)
     finally:
         costs.finish()
         log(f"costs → {ep.dir / 'run.md'}")
@@ -173,6 +195,7 @@ def render_cmd(episode: EpisodeDir, config: ConfigOpt = None,
 def qa_cmd(episode: EpisodeDir, config: ConfigOpt = None,
            ai_qa: Annotated[bool, typer.Option("--ai-qa")] = False) -> None:
     """Step 7: re-run QA checks and rewrite README.md."""
+    require_tools()  # ffprobe checks + ffmpeg frame grabs
     ep = Episode.load(episode, config)
     if ai_qa:
         costs.start(ep, "qa --ai-qa")
@@ -187,20 +210,22 @@ def qa_cmd(episode: EpisodeDir, config: ConfigOpt = None,
 
 @app.command()
 def doctor() -> None:
-    """Check the environment: ffmpeg, libass, uv, claude, fonts, models."""
+    """Check the environment: ffmpeg, libass, uv, claude, fonts, models. Exits 1 when a required tool is missing."""
     from .assets import font_path, yunet_path
 
-    for tool in ("ffmpeg", "ffprobe", "uv", "uvx", "claude"):
+    required = ("ffmpeg", "ffprobe", "uv", "uvx", "claude")
+    for tool in required:
         console.print(f"{'✅' if shutil.which(tool) else '❌'} {tool}")
     if shutil.which("ffmpeg"):
         console.print(f"{'✅' if has_libass() else 'ℹ️ '} libass subtitles filter "
                       f"{'' if has_libass() else '(missing: Pillow overlay fallback is used)'}")
     console.print(f"{'✅' if os.environ.get('HF_TOKEN') else 'ℹ️ '} HF_TOKEN (diarization not used either way)")
-    try:
-        console.print(f"✅ font {font_path()}")
-        console.print(f"✅ face model {yunet_path()}")
-    except Exception as e:  # network errors etc.
-        warn(str(e))
+    for label, check in (("font", lambda: font_path()), ("face model", yunet_path)):
+        try:
+            console.print(f"✅ {label} {check()}")
+        except Exception as e:  # network errors etc.
+            warn(f"{label}: {e}")
+    require_tools(*required)  # exits with install hints if anything above was ❌
 
 
 def main() -> None:

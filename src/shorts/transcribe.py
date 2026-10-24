@@ -93,7 +93,7 @@ def run(ep: Episode, force: bool = False) -> dict:
     params = ("whisper-v1", cfg.whisper_model, cfg.whisper_compute, cfg.language, initial_prompt(ep))
     key = make_key(params, file_sig(wav), chunks, file_sig(work / "stereo.json"))
     if not force and is_fresh(work, "transcribe", key, outputs):
-        return read_json(work / "transcript.json")
+        return _require_speech(read_json(work / "transcript.json"))
 
     audio = read_wav(wav)
     total = len(audio) / SR
@@ -121,4 +121,11 @@ def run(ep: Episode, force: bool = False) -> dict:
     write_outputs(work, transcript)
     mark_done(work, "transcribe", key)
     log(f"transcribe: {len(segments)} segments → {work / 'transcript.txt'}")
+    return _require_speech(transcript)
+
+
+def _require_speech(transcript: dict) -> dict:
+    if not transcript["segments"]:
+        raise SystemExit("transcription found no speech in the source audio — nothing to clip. "
+                         "Wrong file, or wrong language? (--lang auto to detect)")
     return transcript

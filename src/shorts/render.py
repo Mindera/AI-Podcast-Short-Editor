@@ -191,8 +191,14 @@ def render_one(ep_dir: str, clip: dict, host_side: str, corrections: dict) -> di
 
 
 def run(ep: Episode, only: list[int] | None = None) -> list[dict]:
-    data = read_json(ep.work / "clips.json")
+    clips_path = ep.work / "clips.json"
+    if not clips_path.exists():
+        raise SystemExit(f"no clips picked yet ({clips_path} is missing) — run `shorts run <source>` first")
+    data = read_json(clips_path)
     clips = [c for c in data["clips"] if not only or c["rank"] in only]
+    if only and not clips:
+        raise SystemExit(f"--only {','.join(map(str, only))} matched no clips "
+                         f"(clips.json has ranks 1–{len(data['clips'])})")
     ensure_assets(ep.cfg.brand.font)
 
     # move outputs of clips that are no longer in clips.json out of the way (never delete)

@@ -52,10 +52,24 @@ def hex_rgb(color: str) -> tuple[int, int, int]:
     return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
 
 
-def require_tools() -> None:
-    missing = [t for t in ("ffmpeg", "ffprobe") if not shutil.which(t)]
+INSTALL_HINTS = {
+    "ffmpeg": "macOS: brew install ffmpeg · Debian/Ubuntu: apt install ffmpeg · https://ffmpeg.org/download.html",
+    "ffprobe": "ships with ffmpeg: macOS: brew install ffmpeg · Debian/Ubuntu: apt install ffmpeg",
+    "uv": "curl -LsSf https://astral.sh/uv/install.sh | sh · https://docs.astral.sh/uv/",
+    "uvx": "ships with uv: curl -LsSf https://astral.sh/uv/install.sh | sh · https://docs.astral.sh/uv/",
+    "claude": "npm install -g @anthropic-ai/claude-code, then log in with `claude` · https://docs.claude.com/en/docs/claude-code",
+}
+
+
+def require_tools(*tools: str) -> None:
+    """Exit with one message naming every missing tool (and how to install it) before any work starts."""
+    tools = tools or ("ffmpeg", "ffprobe")
+    missing = [t for t in tools if not shutil.which(t)]
     if missing:
-        raise SystemExit(f"missing required tools: {', '.join(missing)} (brew install ffmpeg)")
+        lines = [f"missing required tools: {', '.join(missing)}"]
+        lines += [f"  {t}: {INSTALL_HINTS[t]}" for t in missing if t in INSTALL_HINTS]
+        lines.append("check the environment with: shorts doctor")
+        raise SystemExit("\n".join(lines))
 
 
 def ffmpeg_filters() -> set[str]:
