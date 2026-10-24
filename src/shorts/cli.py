@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -94,11 +95,21 @@ def run(
 
 def _run_steps(ep: Episode, yes: bool, ai_qa: bool) -> None:
     # fonts + face model download while the source downloads / transcribes
-    assets = threading.Thread(target=ensure_assets, args=(ep.cfg.brand.font,), daemon=True)
+    assets_err: list[BaseException] = []
+
+    def _assets() -> None:
+        try:
+            ensure_assets(ep.cfg.brand.font)
+        except BaseException as e:  # surfaced after join; a daemon thread's traceback would be lost
+            assets_err.append(e)
+
+    assets = threading.Thread(target=_assets, daemon=True)
     assets.start()
     with costs.step("fetch"):
         fetch.fetch(ep)
         assets.join()
+    if assets_err:
+        raise SystemExit(f"asset download failed: {assets_err[0]}")
     with costs.step("probe"):
         probe.run(ep)
     # separate process: OpenCV and PyAV (faster-whisper) bundle clashing libavdevice copies on macOS
@@ -216,6 +227,14 @@ def doctor() -> None:
     required = ("ffmpeg", "ffprobe", "uv", "uvx", "claude")
     for tool in required:
         console.print(f"{'✅' if shutil.which(tool) else '❌'} {tool}")
+    logged_in = None
+    if shutil.which("claude"):
+        try:
+            proc = subprocess.run(["claude", "auth", "status"], capture_output=True, text=True, timeout=30)
+            logged_in = proc.returncode == 0 and bool(json.loads(proc.stdout).get("loggedIn"))
+            console.print(f"{'✅' if logged_in else '❌'} claude logged in")
+        except Exception:  # older CLI without `auth status`, timeout…
+            console.print("ℹ️  claude login not verified (`claude auth status` unavailable)")
     if shutil.which("ffmpeg"):
         console.print(f"{'✅' if has_libass() else 'ℹ️ '} libass subtitles filter "
                       f"{'' if has_libass() else '(missing: Pillow overlay fallback is used)'}")
@@ -226,6 +245,8 @@ def doctor() -> None:
         except Exception as e:  # network errors etc.
             warn(f"{label}: {e}")
     require_tools(*required)  # exits with install hints if anything above was ❌
+    if logged_in is False:
+        raise SystemExit("claude is installed but not logged in — run `claude` once and sign in")
 
 
 def main() -> None:

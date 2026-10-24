@@ -116,7 +116,10 @@ def ai_review(ep: Episode, sheet: Path) -> str:
     cmd = [cfg.claude_bin, "-p", "--output-format", "json", "--allowedTools", "Read", "--add-dir", str(sheet.parent)]
     if cfg.claude_model:
         cmd += ["--model", cfg.claude_model]
-    proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=sheet.parent, timeout=600)
+    try:
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=sheet.parent, timeout=600)
+    except subprocess.TimeoutExpired:
+        return "AI QA skipped: claude -p gave no reply within 600s"
     try:
         envelope = json.loads(proc.stdout)
     except json.JSONDecodeError:

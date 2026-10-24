@@ -164,7 +164,7 @@ def render_one(ep_dir: str, clip: dict, host_side: str, corrections: dict) -> di
 
     # captions (cached)
     caps_dir = cw / "captions"
-    cap_key = make_key("captions-v4", file_sig(work / "transcript.json"), clip["start"], clip["end"], corrections,
+    cap_key = make_key("captions-v5", file_sig(work / "transcript.json"), clip["start"], clip["end"], corrections,
                        cfg.terms, cfg.fillers, cfg.brand.model_dump(), str(font_file), rf_key)
     if not is_fresh(cw, "captions", cap_key, [caps_dir / "caps.ffconcat", ass]):
         words = clip_words(transcript_words(read_json(work / "transcript.json")), clip["start"], clip["end"], cfg,

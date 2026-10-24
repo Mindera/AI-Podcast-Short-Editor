@@ -1,6 +1,5 @@
 from PIL import ImageFont
 
-from shorts.assets import font_path
 from shorts.captions import build_captions, layout_pages
 from shorts.config import Brand
 from shorts.words import Word
@@ -16,9 +15,9 @@ def _words(text, gap_at=None):
     return ws
 
 
-def test_layout_limits_and_pause_breaks(tmp_path):
+def test_layout_limits_and_pause_breaks(font_file):
     brand = Brand()
-    font = ImageFont.truetype(str(font_path()), brand.font_size)
+    font = ImageFont.truetype(str(font_file), brand.font_size)
     ws = _words("one two three four five six seven eight nine ten eleven", gap_at=4)
     pages = layout_pages(ws, font, brand, 10)
     assert pages[0].words[-1].text == "four"  # pause > 0.6 s starts a new screen
@@ -28,12 +27,12 @@ def test_layout_limits_and_pause_breaks(tmp_path):
         assert a.end <= b.start + 1e-9
 
 
-def test_build_captions_avoids_faces_and_safe_zones(tmp_path):
+def test_build_captions_avoids_faces_and_safe_zones(tmp_path, font_file):
     brand = Brand()
     ws = _words("this caption should move away from the face below")
     face = [300, 1180, 480, 300]  # sits right where 64 % would be
     segs = [{"start": 0, "end": 10, "kind": "crop", "faces": [face]}]
-    meta = build_captions(ws, 10, segs, font_path(), brand, tmp_path / "caps", tmp_path / "x.ass")
+    meta = build_captions(ws, 10, segs, font_file, brand, tmp_path / "caps", tmp_path / "x.ass")
     for p in meta["pages"]:
         x1, y1, x2, y2 = p["bbox"]
         assert y1 >= brand.safe_top and y2 <= 1920 - brand.safe_bottom
@@ -41,3 +40,15 @@ def test_build_captions_avoids_faces_and_safe_zones(tmp_path):
         assert not (y1 < fy + fh and fy < y2)
     assert (tmp_path / "caps" / "caps.ffconcat").read_text().startswith("ffconcat version 1.0")
     assert "Dialogue:" in (tmp_path / "x.ass").read_text()
+
+
+def test_overwide_single_word_shrinks_to_fit(tmp_path, font_file):
+    brand = Brand()
+    ws = _words("Rindfleischetikettierungsueberwachungsaufgaben then normal words again")
+    segs = [{"start": 0, "end": 10, "kind": "crop", "faces": []}]
+    meta = build_captions(ws, 10, segs, font_file, brand, tmp_path / "caps", tmp_path / "x.ass")
+    for p in meta["pages"]:
+        x1, y1, x2, y2 = p["bbox"]
+        assert x1 >= 0 and x2 <= 1080 - brand.safe_right + brand.outline_px, p["text"]
+    # the shrunken page carries its size into the .ass deliverable
+    assert "\\fs" in (tmp_path / "x.ass").read_text()

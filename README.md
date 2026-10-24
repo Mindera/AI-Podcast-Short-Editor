@@ -132,7 +132,7 @@ Terms to spell right: Mindera, Kotlin Multiplatform, phygital. Output to ~/Short
 | `shorts snap <dir>` | Snap to exact word times, pad, rank → `clips.json`; prints the approval table. | ❌ |
 | `shorts render <dir> [--only 1,3]` | Reframe, captions, encode, covers, then QA. | ❌ (`--ai-qa` ✅) |
 | `shorts qa <dir> [--ai-qa]` | Re-run the checks and rewrite `README.md`. | optional |
-| `shorts doctor` | Check ffmpeg / libass / uv / claude, fetch the font and face model. | ❌ |
+| `shorts doctor` | Check ffmpeg / libass / uv / claude (and its login), fetch the font and face model; exits 1 if anything required is missing. | ❌ |
 
 `<dir>` is the episode folder, `<out>/<slug>/`. Every step command takes `--config` and `--force`, which ignores the cache.
 

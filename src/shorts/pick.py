@@ -143,10 +143,19 @@ def call_claude(ep: Episode, prompt: str, purpose: str = "pick") -> str:
     cmd = [cfg.claude_bin, "-p", "--output-format", "json", "--allowedTools", "Read", "--add-dir", str(ep.work)]
     if cfg.claude_model:
         cmd += ["--model", cfg.claude_model]
-    proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=ep.work, timeout=cfg.claude_timeout_s)
+    try:
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=ep.work,
+                              timeout=cfg.claude_timeout_s)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"claude -p gave no reply within {cfg.claude_timeout_s}s "
+                           "(raise claude_timeout_s in the config, or try --model sonnet)") from None
     if proc.returncode != 0:
         raise RuntimeError(f"claude -p failed ({proc.returncode}): {proc.stderr.strip()[-800:]}")
-    envelope = json.loads(proc.stdout)
+    try:
+        envelope = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError("claude -p didn't return JSON — is the claude CLI logged in? (run `claude` once) "
+                           f"stdout: {proc.stdout.strip()[:300]!r}") from None
     costs.record_claude(purpose, envelope)
     if envelope.get("is_error"):
         raise RuntimeError(f"claude -p returned an error: {envelope.get('result')}")
