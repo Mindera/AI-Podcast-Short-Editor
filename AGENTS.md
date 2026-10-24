@@ -18,9 +18,11 @@ shorts from a podcast with this repo.
    | "save to …" | `--out …` |
    | "don't ask me, just render" | `--yes` |
    | "use Opus to pick" | `--model opus` |
+   | "pick with Codex / Copilot / Gemini" | `--picker codex` (or `copilot`, `gemini`; default `claude`) |
    | "use my Google login" (private Drive file) | `--drive-cookies chrome` |
 
-2. **Check the environment:** `./shorts doctor`. Needs `ffmpeg`/`ffprobe`, `uv`, and the `claude` CLI (logged in).
+2. **Check the environment:** `./shorts doctor`. Needs `ffmpeg`/`ffprobe`, `uv`, and the picker's agent CLI, logged
+   in (`claude` by default; `codex`/`copilot`/`gemini` via `--picker`).
    Never install system packages or use `sudo`; everything Python lives in the project's `uv` venv (Python 3.12).
    Missing libass is fine (captions fall back to Pillow overlays).
 
@@ -45,7 +47,7 @@ shorts from a podcast with this repo.
    speaking, are captions inside the safe zones and off faces, no flicker? Read `_qa/qa.json`. Fix (edit
    `_work/clips.json`, e.g. speaker turns or times) and `./shorts render <dir> --only N` before reporting.
 
-5. **Report** the output folder, the `README.md` table, any QA warnings, the Claude cost from `run.md`, and what you
+5. **Report** the output folder, the `README.md` table, any QA warnings, the agent cost from `run.md`, and what you
    assumed.
 
 ## Rules

@@ -93,6 +93,19 @@ def record_claude(purpose: str, envelope: dict) -> None:
     _save()
 
 
+def record_agent(purpose: str, agent: str, duration_s: float, ok: bool = True) -> None:
+    """Record a call to a non-Claude agent CLI (they don't report token usage or spend)."""
+    if _run is None:
+        return
+    _run["claude"].append({
+        "purpose": purpose,
+        "models": {agent: {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "cost_usd": 0.0}},
+        "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0,
+        "cost_usd": 0.0, "duration_s": round(duration_s, 1), "api_s": 0.0, "turns": 1, "ok": ok, "session_id": "",
+    })
+    _save()
+
+
 def finish() -> None:
     if _run is not None and _run["finished"] is None:
         _run["finished"] = time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -178,22 +191,23 @@ def write_report(ep, ledger: dict) -> None:
              f"Updated: {time.strftime('%Y-%m-%d %H:%M:%S')}", "",
              "## Summary", "",
              "| | |", "|---|---|",
-             f"| Claude spend (all runs) | **{_usd(total_usd)}** over {len(calls)} call(s) |",
+             f"| Agent spend (all runs) | **{_usd(total_usd)}** over {len(calls)} call(s) |",
              f"| Pipeline time (all runs) | {_dur(total_wall)} wall · {_dur(total_cpu)} CPU |"]
     if facts["source_s"]:
         lines.append(f"| Source length | {fmt_ts(facts['source_s'])} "
-                     f"({_usd(total_usd / (facts['source_s'] / 3600))} Claude per source hour) |")
+                     f"({_usd(total_usd / (facts['source_s'] / 3600))} agent spend per source hour) |")
     if n_clips:
         lines += [f"| Clips rendered | {n_clips} · {_dur(sum(facts['clips']))} of video · "
                   f"{facts['out_bytes'] / 1e6:,.1f} MB |",
-                  f"| Per clip | {_usd(total_usd / n_clips)} Claude · {_dur(total_wall / n_clips)} wall |"]
+                  f"| Per clip | {_usd(total_usd / n_clips)} agent spend · {_dur(total_wall / n_clips)} wall |"]
     lines += ["",
-              "> Claude costs are what `claude -p` reports, priced at API list rates. On a Claude subscription "
-              "(Pro/Max/Team) the same tokens count toward your plan's usage limits instead of being billed. "
-              "Transcription, face tracking and encoding run locally, so their cost is machine time only.", ""]
+              "> Agent costs are what the agent CLI reports, priced at API list rates — only Claude Code reports "
+              "them; Codex/Copilot/Gemini calls are logged with time but $0. On a subscription the same tokens "
+              "count toward your plan's usage limits instead of being billed. Transcription, face tracking and "
+              "encoding run locally, so their cost is machine time only.", ""]
 
     if by_model:
-        lines += ["## Claude by model", "",
+        lines += ["## Agent calls by model", "",
                   "| Model | Calls | Input | Cache write | Cache read | Output | Cost |",
                   "|---|---:|---:|---:|---:|---:|---:|"]
         for m, t in sorted(by_model.items()):
@@ -208,7 +222,7 @@ def write_report(ep, ledger: dict) -> None:
         h = r["host"]
         state = f"finished {r['finished'][11:]}" if r["finished"] else "unfinished (stopped or still running)"
         lines += [f"### `shorts {r['command']}` — {r['started'].replace('T', ' ')}", "",
-                  f"{_usd(usd)} Claude · {_dur(wall)} wall · {state} · "
+                  f"{_usd(usd)} agent spend · {_dur(wall)} wall · {state} · "
                   f"{h['system']} {h['machine']}, {h['cpus']} CPUs", ""]
         if r["steps"]:
             lines += ["| Step | Wall | CPU | Status |", "|---|---:|---:|---|"]
@@ -218,6 +232,6 @@ def write_report(ep, ledger: dict) -> None:
         if r["claude"]:
             lines += _claude_rows(r["claude"]) + [""]
         else:
-            lines += ["No Claude calls in this run (cached or stub picks, or AI QA off).", ""]
+            lines += ["No agent calls in this run (cached or stub picks, or AI QA off).", ""]
 
     atomic_write_text(ep.dir / "run.md", "\n".join(lines))

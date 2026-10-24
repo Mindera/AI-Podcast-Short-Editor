@@ -43,9 +43,10 @@ def _env_checks() -> None:
 
 
 def _require_picker(cfg) -> None:
-    """The pick step runs `claude -p` long after the slow steps; fail now if it's missing."""
-    if os.environ.get("SHORTS_PICKER", "claude") != "stub":
-        require_tools(cfg.claude_bin)
+    """The pick step runs an agent CLI long after the slow steps; fail now if it's missing."""
+    from .agent import require_agent
+
+    require_agent(cfg)
 
 
 def _require_fetcher(source: str) -> None:
@@ -68,19 +69,22 @@ def run(
     language: Annotated[Optional[str], typer.Option("--lang", "-l", help="Language code, or 'auto'.")] = None,
     terms: Annotated[Optional[str], typer.Option(help="Comma-separated proper nouns/terms to spell right.")] = None,
     host_side: Annotated[Optional[str], typer.Option(help="auto | left | right")] = None,
-    model: Annotated[Optional[str], typer.Option("--model", help="Claude model for picking (e.g. opus).")] = None,
+    picker: Annotated[Optional[str], typer.Option(
+        "--picker", help="Agent CLI that picks clips: claude (default) | codex | copilot | gemini | stub.")] = None,
+    model: Annotated[Optional[str], typer.Option(
+        "--model", help="Model for the picker agent (e.g. opus, gpt-5-codex, gemini-2.5-pro).")] = None,
     whisper_model: Annotated[Optional[str], typer.Option(help="faster-whisper model (default medium).")] = None,
     jobs: Annotated[Optional[int], typer.Option(help="Parallel renders (default cores/6).")] = None,
     drive_cookies: Annotated[Optional[str], typer.Option(
         "--drive-cookies", help="Browser whose Google login to use for a private Drive file (e.g. chrome).")] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the approval pause and render straight away.")] = False,
-    ai_qa: Annotated[bool, typer.Option("--ai-qa", help="Ask Claude to review the QA contact sheet.")] = False,
+    ai_qa: Annotated[bool, typer.Option("--ai-qa", help="Ask the picker agent to review the QA contact sheet.")] = False,
 ) -> None:
     """Do everything: fetch → probe → transcribe → pick → snap → [approve] → render → qa."""
     _env_checks()
     cfg = load_config(config, _overrides(out=out, host=host, guest=guest, clips=clips, language=language, terms=terms,
-                                         host_side=host_side, claude_model=model, whisper_model=whisper_model,
-                                         jobs=jobs, drive_cookies=drive_cookies))
+                                         host_side=host_side, picker=picker, agent_model=model,
+                                         whisper_model=whisper_model, jobs=jobs, drive_cookies=drive_cookies))
     _require_fetcher(source)
     _require_picker(cfg)  # pick runs ~30 min in on a long episode; fail now, not then
     ep = Episode.create(source, cfg, name)
@@ -164,9 +168,10 @@ def transcribe_cmd(episode: EpisodeDir, config: ConfigOpt = None, force: ForceOp
 @app.command("pick")
 def pick_cmd(episode: EpisodeDir, config: ConfigOpt = None, force: ForceOpt = False,
              clips: Annotated[Optional[int], typer.Option("--clips", "-k")] = None,
+             picker: Annotated[Optional[str], typer.Option("--picker")] = None,
              model: Annotated[Optional[str], typer.Option("--model")] = None) -> None:
-    """Step 3: Claude reads the whole transcript and picks clips → clips_raw.json."""
-    ep = Episode.load(episode, config, _overrides(clips=clips, claude_model=model) or None)
+    """Step 3: the picker agent reads the whole transcript and picks clips → clips_raw.json."""
+    ep = Episode.load(episode, config, _overrides(clips=clips, picker=picker, agent_model=model) or None)
     _require_picker(ep.cfg)
     costs.start(ep, "pick")
     try:
@@ -220,17 +225,26 @@ def qa_cmd(episode: EpisodeDir, config: ConfigOpt = None,
 
 
 @app.command()
-def doctor() -> None:
-    """Check the environment: ffmpeg, libass, uv, claude, fonts, models. Exits 1 when a required tool is missing."""
+def doctor(config: ConfigOpt = None) -> None:
+    """Check the environment: ffmpeg, libass, uv, the picker agent CLI, fonts, models. Exits 1 when something
+    required is missing."""
+    from .agent import AGENTS, agent_bin, picker_name
     from .assets import font_path, yunet_path
 
-    required = ("ffmpeg", "ffprobe", "uv", "uvx", "claude")
-    for tool in required:
+    cfg = load_config(config)
+    picker = picker_name(cfg)
+    for tool in ("ffmpeg", "ffprobe", "uv", "uvx"):
         console.print(f"{'✅' if shutil.which(tool) else '❌'} {tool}")
+    for a in AGENTS:
+        b = agent_bin(cfg) if a == picker else a
+        have = bool(shutil.which(b))
+        mark = "✅" if have else ("❌" if a == picker else "ℹ️ ")
+        console.print(f"{mark} {a}{f' ({b})' if b != a else ''}"
+                      f"{' ← picker' if a == picker else ''}{'' if have else ' not installed'}")
     logged_in = None
-    if shutil.which("claude"):
+    if picker == "claude" and shutil.which(agent_bin(cfg)):
         try:
-            proc = subprocess.run(["claude", "auth", "status"], capture_output=True, text=True, timeout=30)
+            proc = subprocess.run([agent_bin(cfg), "auth", "status"], capture_output=True, text=True, timeout=30)
             logged_in = proc.returncode == 0 and bool(json.loads(proc.stdout).get("loggedIn"))
             console.print(f"{'✅' if logged_in else '❌'} claude logged in")
         except Exception:  # older CLI without `auth status`, timeout…
@@ -244,6 +258,7 @@ def doctor() -> None:
             console.print(f"✅ {label} {check()}")
         except Exception as e:  # network errors etc.
             warn(f"{label}: {e}")
+    required = ["ffmpeg", "ffprobe", "uv", "uvx"] + ([agent_bin(cfg)] if picker != "stub" else [])
     require_tools(*required)  # exits with install hints if anything above was ❌
     if logged_in is False:
         raise SystemExit("claude is installed but not logged in — run `claude` once and sign in")

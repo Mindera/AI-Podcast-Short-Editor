@@ -65,7 +65,8 @@ and typing captions. This tool does all of that from one command and stops once,
 
 ```bash
 git clone https://github.com/Mindera/AI-Podcast-Short-Editor && cd AI-Podcast-Short-Editor
-brew install ffmpeg uv                      # if you don't have them; Claude Code must be installed and logged in
+brew install ffmpeg uv                      # if you don't have them; an agent CLI must be installed and logged in
+                                            # (Claude Code by default; or Codex/Copilot/Gemini via --picker)
 ./shorts doctor                             # checks tools, downloads the font + face model
 
 ./shorts ~/Downloads/episode-12.mp4 --host "Ana Silva" --guest "Rui Costa"
@@ -132,7 +133,7 @@ Terms to spell right: Mindera, Kotlin Multiplatform, phygital. Output to ~/Short
 | `shorts snap <dir>` | Snap to exact word times, pad, rank → `clips.json`; prints the approval table. | ❌ |
 | `shorts render <dir> [--only 1,3]` | Reframe, captions, encode, covers, then QA. | ❌ (`--ai-qa` ✅) |
 | `shorts qa <dir> [--ai-qa]` | Re-run the checks and rewrite `README.md`. | optional |
-| `shorts doctor` | Check ffmpeg / libass / uv / claude (and its login), fetch the font and face model; exits 1 if anything required is missing. | ❌ |
+| `shorts doctor` | Check ffmpeg / libass / uv / the picker agent CLI (and claude's login), fetch the font and face model; exits 1 if anything required is missing. | ❌ |
 
 `<dir>` is the episode folder, `<out>/<slug>/`. Every step command takes `--config` and `--force`, which ignores the cache.
 
@@ -170,7 +171,8 @@ probe ──► transcribe ──► pick ──► snap ──► clips.json �
 | `--out`, `-o` | `~/Shorts` | Output root. Each episode gets its own folder. |
 | `--name`, `-n` | short form of the filename | Episode folder name. Default: the video's filename (Drive file name for public Drive links) trimmed to its distinctive words, ≤40 chars, e.g. `Podcast EP12 - Jane Doe (FINAL v3).mp4` → `podcast-ep12-jane-doe`. Private Drive files fall back to `drive-<id>`. Re-running the same source reuses its folder; a different source with the same name gets `-2`. |
 | `--drive-cookies` | off | Browser (`chrome`, `brave`, `firefox`, `safari`…) whose Google login downloads a private Drive file. |
-| `--model` | Claude Code default | Claude model for picking, e.g. `opus`. |
+| `--picker` | `claude` | Agent CLI that picks the clips: `claude` / `codex` / `copilot` / `gemini` / `stub` (`SHORTS_PICKER` env var overrides). |
+| `--model` | the agent's default | Model for the picker agent, e.g. `opus`, `gpt-5-codex`, `gemini-2.5-pro`. |
 | `--whisper-model` | `medium` | faster-whisper model (int8, CPU). |
 | `--jobs` | cores / 6 | Parallel renders. |
 | `--yes`, `-y` | off | Skip the approval stop. |
@@ -305,7 +307,7 @@ flowchart LR
 |---|---|---|
 | `uv` | `brew install uv` | – |
 | `ffmpeg` / `ffprobe` | `brew install ffmpeg` | – |
-| Claude Code | [claude.com/claude-code](https://claude.com/claude-code), logged in | Picking fails (`SHORTS_PICKER=stub` for tests). |
+| An agent CLI | [Claude Code](https://claude.com/claude-code) (default), logged in — or Codex / Copilot / Gemini CLI via `--picker` | Picking fails (`SHORTS_PICKER=stub` for tests). |
 | libass in ffmpeg | optional | Pillow overlay is used (the default here). |
 | `HF_TOKEN` | optional | Diarization isn't used; speaker turns come from the transcript and the stereo mics. |
 

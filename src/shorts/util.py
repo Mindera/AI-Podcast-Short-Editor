@@ -58,6 +58,9 @@ INSTALL_HINTS = {
     "uv": "curl -LsSf https://astral.sh/uv/install.sh | sh · https://docs.astral.sh/uv/",
     "uvx": "ships with uv: curl -LsSf https://astral.sh/uv/install.sh | sh · https://docs.astral.sh/uv/",
     "claude": "npm install -g @anthropic-ai/claude-code, then log in with `claude` · https://docs.claude.com/en/docs/claude-code",
+    "codex": "npm install -g @openai/codex, then log in with `codex` · https://developers.openai.com/codex/cli",
+    "copilot": "npm install -g @github/copilot, then log in with `copilot` · https://docs.github.com/en/copilot",
+    "gemini": "npm install -g @google/gemini-cli, then log in with `gemini` · https://github.com/google-gemini/gemini-cli",
 }
 
 
