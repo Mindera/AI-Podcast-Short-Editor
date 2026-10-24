@@ -27,12 +27,18 @@ def _srt_ts(t: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-def channel_hint(work: Path, start: float, end: float) -> str:
+def mic_rms(work: Path) -> np.ndarray | None:
+    """The 10 Hz L/R RMS envelope, present only for separate-mic recordings."""
+    stereo, rms = work / "stereo.json", work / "stereo_rms.npy"
+    if not stereo.exists() or not rms.exists() or not read_json(stereo).get("separate_mics"):
+        return None
+    return np.load(rms)
+
+
+def channel_hint(rms: np.ndarray | None, start: float, end: float) -> str:
     """'L'/'R' when one mic clearly dominates this segment (separate-mic recordings only)."""
-    stereo = work / "stereo.json"
-    if not stereo.exists() or not read_json(stereo).get("separate_mics"):
+    if rms is None:
         return ""
-    rms = np.load(work / "stereo_rms.npy")
     a, b = int(start * 10), max(int(start * 10) + 1, int(end * 10))
     seg = rms[a:b]
     if len(seg) == 0:
@@ -48,9 +54,10 @@ def channel_hint(work: Path, start: float, end: float) -> str:
 def write_outputs(work: Path, transcript: dict) -> None:
     atomic_write_json(work / "transcript.json", transcript)
     srt, txt = [], []
+    rms = mic_rms(work)
     for i, s in enumerate(transcript["segments"], 1):
         srt.append(f"{i}\n{_srt_ts(s['start'])} --> {_srt_ts(s['end'])}\n{s['text'].strip()}\n")
-        ch = channel_hint(work, s["start"], s["end"])
+        ch = channel_hint(rms, s["start"], s["end"])
         tag = f" | mic {ch}" if ch else ""
         txt.append(f"[{s['start']:.2f}-{s['end']:.2f} | {fmt_ts(s['start'])}{tag}] {s['text'].strip()}")
     atomic_write_text(work / "transcript.srt", "\n".join(srt))
@@ -93,7 +100,7 @@ def run(ep: Episode, force: bool = False) -> dict:
     params = ("whisper-v1", cfg.whisper_model, cfg.whisper_compute, cfg.language, initial_prompt(ep))
     key = make_key(params, file_sig(wav), chunks, file_sig(work / "stereo.json"))
     if not force and is_fresh(work, "transcribe", key, outputs):
-        return read_json(work / "transcript.json")
+        return _require_speech(read_json(work / "transcript.json"))
 
     audio = read_wav(wav)
     total = len(audio) / SR
@@ -121,4 +128,11 @@ def run(ep: Episode, force: bool = False) -> dict:
     write_outputs(work, transcript)
     mark_done(work, "transcribe", key)
     log(f"transcribe: {len(segments)} segments → {work / 'transcript.txt'}")
+    return _require_speech(transcript)
+
+
+def _require_speech(transcript: dict) -> dict:
+    if not transcript["segments"]:
+        raise SystemExit("transcription found no speech in the source audio — nothing to clip. "
+                         "Wrong file, or wrong language? (--lang auto to detect)")
     return transcript

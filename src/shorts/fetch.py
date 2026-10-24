@@ -7,7 +7,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .cache import atomic_write_json
+from .cache import atomic_write_json, read_json, supersede
 from .episode import Episode, drive_id
 from .util import log, warn
 
@@ -28,6 +28,7 @@ def _watch(cmd: list[str], dest: Path, log_path: Path, stall_s: int) -> None:
                 last_size, last_change = size, time.time()
             elif time.time() - last_change > stall_s:
                 p.kill()
+                p.wait()
                 raise RuntimeError(f"download stalled for {stall_s}s (log: {log_path}); re-run to resume")
             if time.time() - last_report > 15:
                 log(f"  downloading… {size / 1e9:.2f} GB")
@@ -37,17 +38,37 @@ def _watch(cmd: list[str], dest: Path, log_path: Path, stall_s: int) -> None:
         raise RuntimeError(f"download failed (log: {log_path})\n{tail}")
 
 
+def _cached(dest: Path, done: Path, source: str) -> bool:
+    """The previous download is only valid if it was for the same source (an episode dir can be re-pointed)."""
+    if not (dest.exists() and done.exists()):
+        return False
+    try:
+        return read_json(done).get("source") == source
+    except Exception:
+        return False
+
+
+def _stale_download(dest: Path, done: Path, ep: Episode) -> None:
+    """A finished download for a *different* source must not be resumed into — move it aside."""
+    if dest.exists() and done.exists():
+        warn(f"source changed for this episode folder; superseding the previous {dest.name}")
+        supersede(dest, ep.work)
+        supersede(done, ep.work)
+
+
 def fetch(ep: Episode) -> Path:
     dest = ep.source_file
     done = ep.work / ".cache" / "fetch.json"
     if did := drive_id(ep.source):
-        if dest.exists() and done.exists():
+        if _cached(dest, done, ep.source):
             return dest
+        _stale_download(dest, done, ep)
         log(f"downloading Drive file {did} (original upload) → {dest}")
         _fetch_drive(did, dest, ep)
     elif ep.source.startswith(("http://", "https://")):
-        if dest.exists() and done.exists():
+        if _cached(dest, done, ep.source):
             return dest
+        _stale_download(dest, done, ep)
         warn("non-Drive URL: downloading with yt-dlp. Re-encoded uploads (e.g. YouTube) lose quality when cropped to 9:16.")
         cmd = ["uvx", "yt-dlp", "-f", "bv*+ba/b", "--merge-output-format", "mp4", "-o", str(dest), ep.source]
         _watch(cmd, dest, ep.work / "logs" / "fetch.log", ep.cfg.stall_s)

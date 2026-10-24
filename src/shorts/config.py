@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 DEFAULT_TERMS = [
     "Mindera",
@@ -59,9 +59,11 @@ class Config(BaseModel):
     chunk_over_s: float = 3600.0
     chunk_every_s: float = 1800.0
 
-    claude_bin: str = "claude"
-    claude_model: str | None = None
-    claude_timeout_s: int = 1800
+    # The coding-agent CLI that picks clips and reviews QA ($SHORTS_PICKER overrides).
+    picker: Literal["claude", "codex", "copilot", "gemini", "stub"] = "claude"
+    picker_bin: str | None = None  # executable override, e.g. a full path (default: the picker's own name)
+    agent_model: str | None = None  # model the agent should use, e.g. "opus", "gpt-5-codex", "gemini-2.5-pro"
+    agent_timeout_s: int = 1800
 
     min_clip_s: float = 20.0
     ideal_max_s: float = 60.0
@@ -80,6 +82,19 @@ class Config(BaseModel):
     drive_cookies: str | None = None  # browser to borrow Google cookies from for private Drive files, e.g. "chrome"
 
     brand: Brand = Field(default_factory=Brand)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_agent_keys(cls, data: Any) -> Any:
+        """Configs saved before the picker was agent-agnostic used claude_* keys."""
+        if isinstance(data, dict):
+            legacy_bin = data.pop("claude_bin", None)
+            if legacy_bin and legacy_bin != "claude" and not data.get("picker_bin"):
+                data["picker_bin"] = legacy_bin
+            for old, new in (("claude_model", "agent_model"), ("claude_timeout_s", "agent_timeout_s")):
+                if (v := data.pop(old, None)) is not None and data.get(new) is None:
+                    data[new] = v
+        return data
 
 
 def _deep_merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
@@ -102,4 +117,7 @@ def load_config(path: Path | None = None, overrides: dict[str, Any] | None = Non
             raise FileNotFoundError(f"config file not found: {p}")
     clean = {k: v for k, v in (overrides or {}).items() if v is not None}
     data = _deep_merge(data, clean)
-    return Config.model_validate(data)
+    try:
+        return Config.model_validate(data)
+    except ValidationError as e:
+        raise SystemExit(f"invalid configuration:\n{e}") from None

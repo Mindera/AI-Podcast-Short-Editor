@@ -1,20 +1,18 @@
-"""Step 3: the judgement step. Headless `claude -p` reads the whole transcript and picks clips.
+"""Step 3: the judgement step. A headless coding-agent CLI (claude/codex/copilot/gemini) reads the whole
+transcript and picks clips.
 
-Set SHORTS_PICKER=stub to skip the LLM (evenly spaced clips, for smoke tests).
+Set SHORTS_PICKER=stub (or `picker = "stub"`) to skip the LLM (evenly spaced clips, for smoke tests).
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
-import shutil
-import subprocess
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from . import costs
+from .agent import picker_name, run_agent
 from .cache import atomic_write_json, file_sig, is_fresh, make_key, mark_done, read_json
 from .episode import Episode
 from .util import log, warn
@@ -85,7 +83,7 @@ def build_prompt(ep: Episode, transcript_txt: str, layout: dict) -> str:
                     "shows who is talking. Work out which mic is the host from who asks the questions.")
     sheet = ep.work / "layout_sheet.jpg"
     layout_note = (
-        f"\n\nCAMERA LAYOUT: use the Read tool to look at the contact sheet image `{sheet}` (10 frames sampled across "
+        f"\n\nCAMERA LAYOUT: use your file-reading tool to look at the contact sheet image `{sheet}` (10 frames sampled across "
         f"the episode, faces boxed in yellow). Face detections per frame (x/y as fractions of the frame): "
         f"{json.dumps(layout.get('frames', []))}. Describe the layout (wide two-shot, separate cameras, close-ups) "
         f"and, only if you can tell who is the host (e.g. the one who asks the questions in a close-up that matches "
@@ -136,23 +134,6 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[a:b + 1])
 
 
-def call_claude(ep: Episode, prompt: str, purpose: str = "pick") -> str:
-    cfg = ep.cfg
-    if not shutil.which(cfg.claude_bin):
-        raise SystemExit(f"`{cfg.claude_bin}` not found. Install Claude Code, or set SHORTS_PICKER=stub.")
-    cmd = [cfg.claude_bin, "-p", "--output-format", "json", "--allowedTools", "Read", "--add-dir", str(ep.work)]
-    if cfg.claude_model:
-        cmd += ["--model", cfg.claude_model]
-    proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=ep.work, timeout=cfg.claude_timeout_s)
-    if proc.returncode != 0:
-        raise RuntimeError(f"claude -p failed ({proc.returncode}): {proc.stderr.strip()[-800:]}")
-    envelope = json.loads(proc.stdout)
-    costs.record_claude(purpose, envelope)
-    if envelope.get("is_error"):
-        raise RuntimeError(f"claude -p returned an error: {envelope.get('result')}")
-    return envelope.get("result", "")
-
-
 def stub_pick(ep: Episode, transcript: dict) -> PickResult:
     """Deterministic picker for tests: evenly spaced ~25 s windows on segment boundaries."""
     segs = transcript["segments"]
@@ -181,9 +162,9 @@ def run(ep: Episode, force: bool = False) -> PickResult:
     work, cfg = ep.work, ep.cfg
     out = work / "clips_raw.json"
     txt_path = work / "transcript.txt"
-    picker = os.environ.get("SHORTS_PICKER", "claude")
+    picker = picker_name(cfg)
     key = make_key(PROMPT_VERSION, picker, file_sig(txt_path), cfg.host, cfg.guest, cfg.clips, cfg.terms,
-                   cfg.claude_model, cfg.min_clip_s, cfg.ideal_max_s, cfg.max_clip_s, cfg.language, cfg.brand.hashtags)
+                   cfg.agent_model, cfg.min_clip_s, cfg.ideal_max_s, cfg.max_clip_s, cfg.language, cfg.brand.hashtags)
     if not force and is_fresh(work, "pick", key, [out]):
         return PickResult.model_validate(read_json(out))
 
@@ -193,15 +174,15 @@ def run(ep: Episode, force: bool = False) -> PickResult:
         layout = read_json(work / "layout.json") if (work / "layout.json").exists() else {}
         prompt = build_prompt(ep, txt_path.read_text(), layout)
         (work / "pick_prompt.txt").write_text(prompt)
-        log(f"pick: asking Claude (claude -p{' --model ' + cfg.claude_model if cfg.claude_model else ''}) "
+        log(f"pick: asking {picker}{' (--model ' + cfg.agent_model + ')' if cfg.agent_model else ''} "
             f"to read the whole transcript and choose {cfg.clips} clips…")
-        reply = call_claude(ep, prompt)
+        reply = run_agent(cfg, prompt, ep.work, "pick")
         try:
             result = PickResult.model_validate(_extract_json(reply))
         except (ValueError, ValidationError) as e:
             warn(f"pick: reply didn't validate ({str(e)[:200]}); retrying once")
-            reply = call_claude(ep, prompt + f"\n\nYour previous reply was invalid: {e}\nReturn ONLY the JSON object.",
-                                "pick (retry)")
+            reply = run_agent(cfg, prompt + f"\n\nYour previous reply was invalid: {e}\nReturn ONLY the JSON object.",
+                              ep.work, "pick (retry)")
             result = PickResult.model_validate(_extract_json(reply))
         (work / "pick_reply.txt").write_text(reply)
     if len(result.clips) < cfg.clips:

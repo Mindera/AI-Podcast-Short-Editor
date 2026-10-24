@@ -28,6 +28,7 @@ class Page:
     end: float = 0.0
     y: float = 0.0  # centre of the text block
     bbox: list[float] = field(default_factory=list)
+    font: ImageFont.FreeTypeFont | None = None  # shrunk below brand size when a single word is too wide
 
     @property
     def words(self) -> list[Word]:
@@ -87,16 +88,36 @@ def _overlaps(a: list[float], b: list[float], margin: float = 20) -> bool:
     return ax1 < bx + bw + margin and bx - margin < ax2 and ay1 < by + bh + margin and by - margin < ay2
 
 
-def place_pages(pages: list[Page], font: ImageFont.FreeTypeFont, brand: Brand, segments: list[dict]) -> None:
+def _fit_page_font(p: Page, font: ImageFont.FreeTypeFont, font_file: Path, brand: Brand) -> ImageFont.FreeTypeFont:
+    """Wrapping keeps lines inside max_text_width, except a single word too wide to wrap: shrink its page."""
+    max_w = brand.max_text_width - 2 * brand.outline_px
+
+    def widest(f: ImageFont.FreeTypeFont) -> float:
+        return max(sum(f.getlength(w.text) for w in ln) + f.getlength(" ") * (len(ln) - 1) for ln in p.lines)
+
+    w = widest(font)
+    if w <= max_w:
+        return font
+    size = max(24, int(font.size * max_w / w))
+    small = ImageFont.truetype(str(font_file), size)
+    while size > 24 and widest(small) > max_w:  # font metrics aren't linear in size
+        size -= 2
+        small = ImageFont.truetype(str(font_file), size)
+    return small
+
+
+def place_pages(pages: list[Page], font: ImageFont.FreeTypeFont, font_file: Path, brand: Brand,
+                segments: list[dict]) -> None:
     """Pick a y for each page: default 64 % (or the seam in split-screen), moved off faces, inside safe zones."""
-    ascent, descent = font.getmetrics()
-    lh = (ascent + descent) * 1.08
-    space = font.getlength(" ")
     pad = brand.outline_px + brand.shadow_px
     top_limit, bottom_limit = brand.safe_top, OUT_H - brand.safe_bottom
     for p in pages:
+        p.font = _fit_page_font(p, font, font_file, brand)
+        ascent, descent = p.font.getmetrics()
+        lh = (ascent + descent) * 1.08
+        space = p.font.getlength(" ")
         block_h = lh * len(p.lines)
-        widest = max(sum(font.getlength(w.text) for w in ln) + space * (len(ln) - 1) for ln in p.lines)
+        widest = max(sum(p.font.getlength(w.text) for w in ln) + space * (len(ln) - 1) for ln in p.lines)
         segs = [s for s in segments if s["start"] < p.end and s["end"] > p.start]
         split = any(s["kind"] == "split" for s in segs)
         faces = [f for s in segs for f in s.get("faces", [])]
@@ -130,6 +151,7 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 
 
 def draw_page(page: Page, active: int | None, font: ImageFont.FreeTypeFont, brand: Brand) -> Image.Image:
+    font = page.font or font
     ascent, descent = font.getmetrics()
     lh = (ascent + descent) * 1.08
     space = font.getlength(" ")
@@ -206,7 +228,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     toks.append(f"{{\\c{hi}}}{t}{{\\c{base}}}" if idx == k else t)
                     idx += 1
                 parts.append(" ".join(toks))
-            text = f"{{\\an5\\pos({OUT_W // 2},{int(p.y)})}}" + "\\N".join(parts)
+            size = int(p.font.size) if p.font else brand.font_size
+            fs = f"\\fs{size}" if size != brand.font_size else ""
+            text = f"{{\\an5\\pos({OUT_W // 2},{int(p.y)}){fs}}}" + "\\N".join(parts)
             events.append(f"Dialogue: 0,{_ass_ts(s)},{_ass_ts(e)},Caption,,0,0,0,,{text}")
     atomic_write_text(path, head + "\n".join(events) + "\n")
 
@@ -219,7 +243,7 @@ def build_captions(words: list[Word], clip_dur: float, segments: list[dict], fon
         old.unlink()  # regenerated intermediates inside _work only
     font = ImageFont.truetype(str(font_file), brand.font_size)
     pages = layout_pages(words, font, brand, clip_dur)
-    place_pages(pages, font, brand, segments)
+    place_pages(pages, font, font_file, brand, segments)
 
     blank = out_dir / "blank.png"
     Image.new("RGBA", (OUT_W, OUT_H), (0, 0, 0, 0)).save(blank, compress_level=1)

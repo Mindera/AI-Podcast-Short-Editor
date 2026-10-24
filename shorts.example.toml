@@ -4,19 +4,21 @@
 language = "en"            # whisper language code, or "auto"
 host = "Ana Silva"
 guest = "Rui Costa"
-host_side = "auto"         # auto (ask Claude from the contact sheet, else left) | left | right
+host_side = "auto"         # auto (ask the picker agent from the contact sheet, else left) | left | right
 clips = 8
 out = "~/Shorts"
 
 # Proper nouns and terms that must be spelled right in captions (also fed to Whisper's initial prompt).
 terms = ["Mindera", "Minders", "Mindera Yellow Box", "Jira", "MAUI", "Kotlin Multiplatform", "React Native", "phygital"]
 
-# Whole-word caption fixes, multi-word allowed. Claude adds the ones it spots while picking clips.
+# Whole-word caption fixes, multi-word allowed. The picker agent adds the ones it spots while picking clips.
 [corrections]
 "my nearer" = "Mindera"
 
-# Picking
-# claude_model = "opus"
+# Picking — which coding-agent CLI reads the transcript and picks the clips.
+# picker = "claude"        # claude (default) | codex | copilot | gemini | stub (no LLM, for smoke tests)
+# picker_bin = "claude"    # override the executable, e.g. a full path
+# agent_model = "opus"     # model for that agent, e.g. "opus", "gpt-5-codex", "gemini-2.5-pro"
 min_clip_s = 20
 ideal_max_s = 60
 max_clip_s = 90

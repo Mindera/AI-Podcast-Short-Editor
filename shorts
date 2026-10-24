@@ -3,6 +3,10 @@
 # Same as `uv run shorts run ...`; step commands (render, qa, …) pass straight through.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! command -v uv >/dev/null 2>&1; then
+  echo "shorts: uv is required (install: curl -LsSf https://astral.sh/uv/install.sh | sh — https://docs.astral.sh/uv/)" >&2
+  exit 1
+fi
 cli=(uv run --quiet --project "$here" shorts)
 case "${1:-}" in
   ""|-h|--help|run|probe|transcribe|pick|snap|render|qa|doctor) exec "${cli[@]}" "$@" ;;
