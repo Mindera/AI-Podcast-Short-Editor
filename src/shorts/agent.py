@@ -51,9 +51,9 @@ def _command(name: str, bin: str, model: str | None, workdir: Path, prompt: str,
         return [bin, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--cd", str(workdir),
                 "--output-last-message", str(last_msg), *model_args, "-"], prompt
     if name == "copilot":
-        return [bin, "-p", prompt, *model_args], None
+        return [bin, "-p", prompt, "-s", *model_args], None  # -s: only the response, no usage banner
     if name == "gemini":
-        return [bin, *model_args, "-p", prompt], None
+        return [bin, *model_args, "--output-format", "json", "-p", prompt], None
     raise ValueError(name)
 
 
@@ -87,6 +87,11 @@ def run_agent(cfg: Config, prompt: str, workdir: Path, purpose: str, timeout_s: 
                 raise RuntimeError(f"claude -p returned an error: {envelope.get('result')}")
             return envelope.get("result", "")
         text = last_msg.read_text() if name == "codex" and last_msg.exists() else proc.stdout
+        if name == "gemini":
+            try:  # --output-format json wraps the reply: {"response": …, "stats": …}
+                text = json.loads(proc.stdout).get("response") or proc.stdout
+            except json.JSONDecodeError:
+                pass
     costs.record_agent(purpose, name, time.time() - t0)
     if not text.strip():
         raise RuntimeError(f"{bin} returned an empty reply (stderr: {proc.stderr.strip()[-300:]})")
