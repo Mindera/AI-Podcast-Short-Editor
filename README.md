@@ -344,11 +344,13 @@ safe-zone avoidance, and the cache.
 
 ## 📄 Licence
 
-[PolyForm Noncommercial 1.0.0](LICENSE.md). Copyright © 2026 Mindera.
+[Sustainable Use License 1.0](LICENSE.md). Copyright © 2026 Mindera.
 
-You may use, change and share this tool for any **noncommercial** purpose: personal projects, research, education,
-and charities, public bodies and other non-profits. **Commercial use is not allowed**, and that includes building
-paid software or services on top of it. For a commercial licence, contact [Mindera](https://mindera.com).
+You may use and change this tool for your **own internal business purposes** or for **non-commercial and personal**
+use. You may share it with others only **free of charge, for non-commercial purposes**, with the licence and
+copyright notices intact. **Selling it, or offering it to others as a paid product or service, is not allowed.** For
+a commercial licence, contact [Mindera](https://mindera.com).
 
-This is a source-available licence, not an OSI-approved open-source one, because open-source licences can't forbid
-commercial use. Montserrat, which is downloaded on first use rather than bundled, is under the SIL Open Font License.
+This is a fair-code, source-available licence (the one n8n uses), not an OSI-approved open-source one, because
+open-source licences can't restrict commercial use. Montserrat, which is downloaded on first use rather than bundled,
+is under the SIL Open Font License.

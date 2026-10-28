@@ -3,7 +3,7 @@ name = "shorts"
 version = "0.1.0"
 description = "Turn a long podcast video into branded vertical shorts with word-by-word captions"
 readme = "README.md"
-license = "PolyForm-Noncommercial-1.0.0"
+license = "SUL-1.0"
 license-files = ["LICENSE.md"]
 requires-python = ">=3.12,<3.13"
 dependencies = [
